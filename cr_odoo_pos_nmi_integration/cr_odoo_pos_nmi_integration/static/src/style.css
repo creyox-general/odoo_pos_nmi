@@ -1,20 +1,13 @@
-.container {
-    display: grid;
-    grid-template-columns: 25% 75%;
-    border-bottom: 1px solid lightgray;
-    background: white
-}
+/*
+ * NMI POS Integration – Custom Styles
+ *
+ * NOTE: The old .container / .left / .right rules have been removed.
+ * They were overriding Bootstrap's global .container class, which was
+ * changing the layout of the Payment screen buttons and other POS UI elements.
+ *
+ * Add any NMI-specific styles below, scoped to a dedicated CSS class
+ * to avoid conflicts with Bootstrap or Odoo's own styles.
+ */
 
-.left, .right {
-    display: flex;
-    justify-content: left;
-    align-items: center;
-}
-
-.left {
-    background-color: white;
-}
-
-.right {
-    background-color: white;
-}
+/* Example: scope future NMI-specific styles properly */
+/* .nmi-payment-info { ... } */

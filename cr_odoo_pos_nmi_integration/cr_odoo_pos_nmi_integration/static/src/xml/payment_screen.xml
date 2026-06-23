@@ -1,52 +1,14 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <templates id="template" xml:space="preserve">
-    <t t-name="geidea_odoo_pos_integration.PaymentScreenButtons" t-inherit="point_of_sale.PaymentScreenButtons" t-inherit-mode="extension">
-        <xpath expr="//div[hasclass('payment-buttons')]" position="after">
-            <t t-if="currentOrder._isRefundOrder() and currentOrder.old_payment_info">
-                <t t-foreach="currentOrder.old_payment_info" t-as="paymentline" t-key="paymentline_index">
-                    <div t-if="paymentline.payment_method_id" class="container">
-                        <div class="left">
-                            <img class="h-80 w-75" src="/geidea_pos_terminal/static/description/icon.png" alt="Geidea"/>
-                        </div>
-                        <div class="right row">
-                            <div class="row">
-                                <span class="col-6">Payment Method: </span>
-                                <span class="col-6">
-                                    <t t-esc="paymentline.payment_method_id[1]"/>
-                                </span>
-                            </div>
-                            <br/>
-                            <div class="row">
-                                <span class="col-6">Card Type: </span>
-                                <span class="col-6">
-                                    <t t-esc="paymentline.card_name_english"/>
-                                </span>
-                            </div>
-                            <div class="row">
-                                <span class="col-6">Last 4 Digits: </span>
-                                <span class="col-6">
-                                    <t t-esc="paymentline.last_four_digits"/>
-                                </span>
-                            </div>
-                            <div class="row">
-                                <span class="col-6">Amount: </span>
-                                <span class="col-6">
-                                    <t t-esc="paymentline.amount"/>
-                                </span>
-                            </div>
-                        </div>
-                    </div>
-                </t>
-            </t>
-        </xpath>
-    </t>
-    <t t-name="geidea_odoo_pos_integration.PaymentScreenPaymentLines" t-inherit="point_of_sale.PaymentScreenPaymentLines" t-inherit-mode="extension">
-        <xpath expr="//t[@t-if=&quot;line.payment_status == 'pending'&quot;]" position="before">
-            <t t-if="['waitingCard','waitingCapture','pending','retry'].includes(line.payment_status)">
-                <div class="button send_force_done bg-primary button m-0 p-3 send_force_done text-white cursor-pointer" title="Force Done" t-on-click="() => this.props.sendForceDone(line)">
-                        Force done
-                </div>
-            </t>
-        </xpath>
-    </t>
+    <!--
+        NMI payment screen extension.
+        The standard Odoo v19 PaymentScreenPaymentLines template already handles:
+        - waitingCard / waitingCapture spinner & Force Done button
+        - pending / retry Send/Retry buttons
+        - done / reversed / reversing statuses
+        - force_done status
+
+        This file is intentionally minimal. Add NMI-specific UI overrides here
+        only if needed in the future.
+    -->
 </templates>

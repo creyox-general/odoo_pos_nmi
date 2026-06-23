@@ -1,7 +1,7 @@
 /** @odoo-module */
 
 import { _t } from "@web/core/l10n/translation";
-import { PaymentInterface } from "@point_of_sale/app/payment/payment_interface";
+import { PaymentInterface } from "@point_of_sale/app/utils/payment/payment_interface";
 import { AlertDialog } from "@web/core/confirmation_dialog/confirmation_dialog";
 import { rpc } from "@web/core/network/rpc";
 
@@ -19,26 +19,27 @@ export class PaymentNMI extends PaymentInterface {
 
     /**
      * Send payment request to NMI Cloud API
+     * @param {string} uuid - The uuid of the paymentline
      */
-    async send_payment_request(cid) {
-        await super.send_payment_request(cid);
-        return this._process_nmi_payment(cid);
+    async sendPaymentRequest(uuid) {
+        return this._process_nmi_payment(uuid);
     }
 
     /**
      * Cancel payment request (triggered when cashier clicks cancel/retry in POS UI)
+     * @param {object} order - The current order
+     * @param {string} uuid - The uuid of the paymentline
      */
-    async send_payment_cancel(order, cid) {
-        await super.send_payment_cancel(order, cid);
+    async sendPaymentCancel(order, uuid) {
         this._stopPolling();
 
-        const line = order?.get_selected_paymentline();
+        const line = order?.getSelectedPaymentline();
         if (line) {
-            line.set_payment_status("retry");
+            line.setPaymentStatus("retry");
             // Call backend terminate to cancel the in-progress device transaction
             try {
                 await rpc("/pos/nmi/payment/terminate", {
-                    payment_method_id: line.payment_method.id
+                    payment_method_id: line.payment_method_id.id
                 });
             } catch (err) {
                 console.warn("Failed to terminate NMI transaction on device:", err);
@@ -47,6 +48,49 @@ export class PaymentNMI extends PaymentInterface {
 
         this._clearTransactionInProgress();
         return true;
+    }
+
+    /**
+     * Reverse (void/refund) a completed payment
+     * @param {string} uuid - The uuid of the paymentline
+     */
+    async sendPaymentReversal(uuid) {
+        const order = this.pos.getOrder();
+        const line = order.getPaymentlineByUuid(uuid);
+
+        if (!line || !line.transaction_id) {
+            this._showError(_t("No NMI Transaction ID found for voiding."));
+            return false;
+        }
+
+        try {
+            this._showNotification(_t("NMI Void"), _t("Processing void/refund request..."));
+
+            // Call void_refund route on backend. Since voids are backend-to-backend, it's instant.
+            const result = await rpc("/pos/nmi/payment/void_refund", {
+                payment_method_id: line.payment_method_id.id,
+                transaction_id: line.transaction_id,
+                amount: Math.abs(line.amount),
+                type: line.amount < 0 ? 'refund' : 'void'
+            });
+
+            if (result.status === 'Approved') {
+                line.setPaymentStatus("reversed");
+                this._showSuccessMessage(
+                    _t("Transaction Voided"),
+                    _t("Transaction has been successfully voided/refunded.")
+                );
+                return true;
+            } else {
+                const errorMsg = result.error || _t("Void request was declined.");
+                this._showError(errorMsg, _t("NMI Void Error"));
+                return false;
+            }
+        } catch (error) {
+            console.error("NMI Void Exception:", error);
+            this._showError(error.message || _t("Void transaction failed."));
+            return false;
+        }
     }
 
     /**
@@ -61,10 +105,11 @@ export class PaymentNMI extends PaymentInterface {
 
     /**
      * Main payment processing function
+     * @param {string} uuid - The uuid of the paymentline
      */
-    async _process_nmi_payment(cid) {
-        const order = this.pos.get_order();
-        const line = order.get_selected_paymentline();
+    async _process_nmi_payment(uuid) {
+        const order = this.pos.getOrder();
+        const line = order.getPaymentlineByUuid(uuid);
 
         if (!line) {
             return false;
@@ -79,14 +124,14 @@ export class PaymentNMI extends PaymentInterface {
         // Mark as in-progress in UI
         this.pos.paymentTerminalInProgress = true;
         this.paymentTerminalInProgress = true;
-        line.set_payment_status("waitingCard");
+        line.setPaymentStatus("waitingCard");
 
         this._showNotification(_t("NMI Payment"), _t("Initiating cloud transaction..."));
 
         try {
             // Initiate transaction via backend route
             const result = await rpc("/pos/nmi/payment/initiate", {
-                payment_method_id: line.payment_method.id,
+                payment_method_id: line.payment_method_id.id,
                 amount: absAmount,
                 reference: reference,
                 transaction_type: transactionType
@@ -100,10 +145,10 @@ export class PaymentNMI extends PaymentInterface {
             if (result.status === 'inFlight' && result.async_status_guid) {
                 this.asyncStatusGuid = result.async_status_guid;
                 this._showNotification(
-                    _t("NMI Payment"), 
+                    _t("NMI Payment"),
                     _t("Please insert, swipe, or tap card on the terminal.")
                 );
-                
+
                 // Start status polling loop
                 return await this._pollTransactionStatus(line);
             } else {
@@ -131,7 +176,7 @@ export class PaymentNMI extends PaymentInterface {
 
             try {
                 const result = await rpc("/pos/nmi/payment/poll", {
-                    payment_method_id: line.payment_method.id,
+                    payment_method_id: line.payment_method_id.id,
                     async_status_guid: this.asyncStatusGuid
                 });
 
@@ -153,7 +198,7 @@ export class PaymentNMI extends PaymentInterface {
                     this._clearTransactionInProgress();
 
                     // Update payment line fields
-                    line.set_payment_status("done");
+                    line.setPaymentStatus("done");
                     line.nmi_reference = result.transaction_id;
                     line.transaction_id = result.transaction_id;
                     line.transaction_auth_code = result.auth_code;
@@ -202,51 +247,10 @@ export class PaymentNMI extends PaymentInterface {
         }
     }
 
-    /**
-     * Void or Refund a completed transaction (triggered when cashier cancels a finished payment line)
-     */
-    async send_payment_void(order, cid) {
-        const line = order.get_selected_paymentline();
-
-        if (!line.transaction_id) {
-            this._showError(_t("No NMI Transaction ID found for voiding."));
-            return false;
-        }
-
-        try {
-            this._showNotification(_t("NMI Void"), _t("Processing void/refund request..."));
-            
-            // Call void_refund route on backend. Since voids are backend-to-backend, it's instant.
-            const result = await rpc("/pos/nmi/payment/void_refund", {
-                payment_method_id: line.payment_method.id,
-                transaction_id: line.transaction_id,
-                amount: Math.abs(line.amount),
-                type: line.amount < 0 ? 'refund' : 'void'
-            });
-
-            if (result.status === 'Approved') {
-                line.set_payment_status("voided");
-                this._showSuccessMessage(
-                    _t("Transaction Voided"),
-                    _t("Transaction has been successfully voided/refunded.")
-                );
-                return true;
-            } else {
-                const errorMsg = result.error || _t("Void request was declined.");
-                this._showError(errorMsg, _t("NMI Void Error"));
-                return false;
-            }
-        } catch (error) {
-            console.error("NMI Void Exception:", error);
-            this._showError(error.message || _t("Void transaction failed."));
-            return false;
-        }
-    }
-
     _handleTransactionError(error, line) {
         this._stopPolling();
         this._clearTransactionInProgress();
-        line.set_payment_status("retry");
+        line.setPaymentStatus("retry");
         this._showError(error.message || _t("Payment transaction failed."));
     }
 
@@ -273,8 +277,8 @@ export class PaymentNMI extends PaymentInterface {
         });
     }
 
-    // Fast payments not supported
-    get fast_payments() {
+    // Fast payments not supported (camelCase for v19)
+    get fastPayments() {
         return false;
     }
 }
