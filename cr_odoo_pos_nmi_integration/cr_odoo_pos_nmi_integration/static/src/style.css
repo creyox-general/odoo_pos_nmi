@@ -1,0 +1,20 @@
+.container {
+    display: grid;
+    grid-template-columns: 25% 75%;
+    border-bottom: 1px solid lightgray;
+    background: white
+}
+
+.left, .right {
+    display: flex;
+    justify-content: left;
+    align-items: center;
+}
+
+.left {
+    background-color: white;
+}
+
+.right {
+    background-color: white;
+}

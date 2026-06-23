@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<odoo>
+    <data>
+        <!-- POS payment method form view-->
+        <record id="view_pos_payment_method_form_inherit_nmi" model="ir.ui.view">
+            <field name="name">pos.payment.method.form.inherit.nmi</field>
+            <field name="model">pos.payment.method</field>
+            <field name="inherit_id" ref="point_of_sale.pos_payment_method_view_form"/>
+            <field name="arch" type="xml">
+                <xpath expr="//form/sheet" position="inside">
+                    <notebook>
+                        <page id="nmi_config" string="NMI Cloud Config" invisible="use_payment_terminal != 'nmi'">
+                            <group name="nmi_credentials" string="Gateway Credentials">
+                                <group>
+                                    <field name="nmi_api_key" password="True" placeholder="Enter NMI Security Key..."/>
+                                    <field name="nmi_environment"/>
+                                </group>
+                                <group>
+                                    <p class="text-muted" colspan="2">
+                                        Configure your gateway credentials here. All transactions and terminal lookups will authenticate using this API key.
+                                    </p>
+                                </group>
+                            </group>
+
+                            <group name="nmi_terminal_management" string="Terminal Management">
+                                <group string="Default Terminal Configuration">
+                                    <field name="pos_terminal_id" string="Default Terminal"
+                                           invisible="use_payment_terminal != 'nmi'"/>
+                                    <button name="action_test_terminal_connection" type="object"
+                                            string="Test Terminal Connection" class="btn-secondary mt-2"
+                                            invisible="not pos_terminal_id"/>
+                                </group>
+                                <group string="Bulk Terminal Lookup">
+                                    <p class="text-muted">
+                                        Click the button below to fetch all terminals registered to your NMI gateway account. This will automatically import or update them in Odoo.
+                                    </p>
+                                    <button name="action_fetch_nmi_terminals" type="object"
+                                            string="Fetch NMI Terminals" class="btn-primary mt-2"/>
+                                </group>
+                            </group>
+
+                            <group name="nmi_register_terminal" string="Register Single Terminal">
+                                <group>
+                                    <field name="nmi_new_terminal_name" placeholder="e.g. Back Counter Terminal"/>
+                                    <field name="nmi_registration_code" placeholder="e.g. 8AVJWV"/>
+                                    <button name="action_register_nmi_terminal" type="object"
+                                            string="Register New Terminal" class="btn-primary mt-2"
+                                            invisible="not nmi_registration_code or not nmi_new_terminal_name"/>
+                                </group>
+                                <group>
+                                    <p class="text-muted">
+                                        To add a new device, check your physical terminal screen for the rotating 6-character registration code, specify a nickname, and click Register.
+                                    </p>
+                                </group>
+                            </group>
+                        </page>
+                    </notebook>
+                </xpath>
+            </field>
+        </record>
+    </data>
+</odoo>
